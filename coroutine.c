@@ -120,13 +120,13 @@ mainfunc(uint32_t low32, uint32_t hi32) {
 	S->running = -1;
 }
 
-void 
+void *
 coroutine_resume(struct schedule * S, int id) {
 	assert(S->running == -1);
 	assert(id >=0 && id < S->cap);
 	struct coroutine *C = S->co[id];
 	if (C == NULL)
-		return;
+		return C;
 	int status = C->status;
 	switch(status) {
 	case COROUTINE_READY:
@@ -136,6 +136,7 @@ coroutine_resume(struct schedule * S, int id) {
 		C->ctx.uc_link = &S->main;
 		S->running = id;
 		C->status = COROUTINE_RUNNING;
+		C->ud = S->co[id]->ud;
 		uintptr_t ptr = (uintptr_t)S;
 		makecontext(&C->ctx, (void (*)(void)) mainfunc, 2, (uint32_t)ptr, (uint32_t)(ptr>>32));
 		swapcontext(&S->main, &C->ctx);
@@ -149,6 +150,8 @@ coroutine_resume(struct schedule * S, int id) {
 	default:
 		assert(0);
 	}
+
+	return C->ud;
 }
 
 static void
@@ -165,13 +168,14 @@ _save_stack(struct coroutine *C, char *top) {
 }
 
 void
-coroutine_yield(struct schedule * S) {
+coroutine_yield(struct schedule * S, void* ud) {
 	int id = S->running;
 	assert(id >= 0);
 	struct coroutine * C = S->co[id];
 	assert((char *)&C > S->stack);
 	_save_stack(C,S->stack + STACK_SIZE);
 	C->status = COROUTINE_SUSPEND;
+	C->ud = ud;
 	S->running = -1;
 	swapcontext(&C->ctx , &S->main);
 }

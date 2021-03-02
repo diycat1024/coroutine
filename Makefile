@@ -5,3 +5,6 @@ main : main.c coroutine.c
 
 clean :
 	rm main
+	
+test : test.c coroutine.c
+	gcc -g -Wall -o $@ $^
